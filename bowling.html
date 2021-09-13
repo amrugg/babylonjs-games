@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+    <title>Camera</title>
+    <script src="babylon/babylon.js"></script>
+    <script src="babylon/cannon.js"></script>
+    <style>
+        html, body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <script>
+        var b = BABYLON;
+        var params = getParams();
+        function getParams() {
+            var params = {};
+            location.search.substr(1).split("&").forEach(function(el) {
+            var data = el.replace(/\+/g, " ").split("=");
+            params[decodeURIComponent(data[0])] = data[1] ? decodeURIComponent(data[1]) : true;
+            });
+            return params;
+        }
+        var jumpStrength;
+        if(params.difficulty == "easy") {
+            jumpStrength = 110;
+        } else if(params.difficulty == "medium") {
+            jumpStrength = 100;
+        } else {
+            jumpStrength = 90;
+        }
+        var keys = {};
+        var canvas = document.getElementById("renderCanvas");
+        var engine = new b.Engine(canvas, false);
+        var scene = new b.Scene(engine);
+        scene.fogStart = 20;
+        scene.fogEnd = 30;
+        scene.fogColor = new BABYLON.Color3(0.9, 0.9, 0.85);
+        scene.fogMode = BABYLON.Scene.FOGMODE_LINEAR;
+        var gravityVector = new b.Vector3(0,-9,0);
+        var physicsPlugin = new b.CannonJSPlugin();
+        scene.enablePhysics(gravityVector,physicsPlugin);
+        /// Why the ArcRotateCamera? It can rotate easily when we want it to.
+        /// Simply setting the target will change the position.
+        var camera = new b.ArcRotateCamera("Camera", 0, 0, 10, b.Vector3.Zero(), scene);
+        // camera.inputs.clear();
+        var sun = new b.PointLight("Omni0", new b.Vector3(60, 100, 10), scene);
+        var cyl1 = new b.Mesh.CreateCylinder(1,2,scene);
+        camera.setPosition(new b.Vector3(-10, 10, 0));
+        camera.attachControl(canvas,true,true);
+        var boxes = [];
+        var box = b.Mesh.CreateSphere("text",16,1,scene);
+        box.position.y += 0.5;
+        box.isPickable = false;
+        box.lastVY = 0;
+        box.physicsImpostor = new BABYLON.PhysicsImpostor(box, BABYLON.PhysicsImpostor.SphereImpostor, { mass: 10,weight:100, restitution: 0.1 }, scene);
+        spawnPins(params.pins || 8);
+        var level = 1;
+        var sound;
+        var otherLoss = false;
+        var activeBox = box;
+        var ground = BABYLON.Mesh.CreateGround("ground1", 6**2.5, 4, 2, scene);
+        ground.position.x+=10;
+	    ground.physicsImpostor = new BABYLON.PhysicsImpostor(ground, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.9 }, scene);
+        engine.runRenderLoop(function () {
+            scene.render();
+            activeBox.moved = true;
+            var velocity = activeBox.physicsImpostor.getLinearVelocity();
+            velocity = {x:0,y:0,z:0}
+            if(keys.ArrowUp) {
+                // console.log(velocity.y);
+                // activeBox.position.vx += 0.1;
+                // activeBox.physicsImpostor.setLinearVelocity(new BABYLON.Vector3(1,0,0));
+                if(velocity.x < 6) {
+                    activeBox.physicsImpostor.applyImpulse(new BABYLON.Vector3(5, 0, 0),activeBox.getAbsolutePosition()) 
+                }
+                activeBox.moved = true;
+            }
+            if(keys.ArrowLeft) {
+                // activeBox.physicsImpostor.setLinearVelocity(new BABYLON.Vector3(0,0,1));
+                if(velocity.z < 6) {
+                    activeBox.physicsImpostor.applyImpulse(new BABYLON.Vector3(0, 0, 1),activeBox.getAbsolutePosition()) 
+                }
+                // activeBox.position.vz += 0.1;
+                activeBox.moved = true;
+            }
+            if(keys.ArrowRight) {
+                // activeBox.physicsImpostor.setLinearVelocity(new BABYLON.Vector3(0,0,-1));
+                if(velocity.z > -6) {
+                    activeBox.physicsImpostor.applyImpulse(new BABYLON.Vector3(0, 0, -1),activeBox.getAbsolutePosition()) 
+                }
+                activeBox.position.vz -= 0.1;
+                activeBox.moved = true;
+            }
+            if(keys.ArrowDown) {
+                // activeBox.physicsImpostor.setLinearVelocity(new BABYLON.Vector3(-1,0,0));
+                if(velocity.x > -6) {
+                activeBox.physicsImpostor.applyImpulse(new BABYLON.Vector3(-5, 0, 0),activeBox.getAbsolutePosition()) 
+                }
+                activeBox.position.vx -= 0.1;
+                activeBox.moved = true;
+            }
+            if(keys.h) {
+                keys.h = false;
+                otherLoss = true;
+                reset();
+                return;
+            }
+            if(keys.p) {
+                activeBox.rotation.x += 0.01;
+            }
+            if(keys[" "] && velocity.y < 2) {
+                var dir = new b.Vector3(0,-1,0);
+                var ray = new BABYLON.Ray(box.position, dir, 100);
+                var hit = scene.pickWithRay(ray);
+                // console.log(hit.pickedPoint)
+                if(hit.hit === true) {
+                    if(hit.pickedPoint.y + 0.6 >= activeBox.position.y) {
+                        keys[" "] = false;
+                        activeBox.physicsImpostor.applyImpulse(new BABYLON.Vector3(0, jumpStrength, 0),activeBox.getAbsolutePosition());
+                    }
+                }
+            }
+            if(activeBox.moved) {
+                /// Change the position to follow after our activeBox...
+                if(keys.z) {
+                    var data = cameraRotatePoint({x:activeBox.position.x,y:activeBox.position.y,z:activeBox.position.z},{distance:10,angle:60},{distance:0,angle:0});
+                } else { 
+                    var data = cameraRotatePoint({x:activeBox.position.x,y:activeBox.position.y,z:activeBox.position.z},{distance:10,angle:-60},{distance:0,angle:0});
+                }
+                // console.log(data);
+                camera.position.x = data.x;
+                camera.position.y = data.y;
+                camera.position.z = data.z;
+                /// And the target, or else we won't move for some reason
+                camera.target = new b.Vector3(activeBox.position.x,activeBox.position.y,activeBox.position.z);
+            }
+        });
+        function reset() {
+            var beatLevel = !otherLoss;
+            activeBox.lastVY = 0;
+            boxes.forEach(function(nBox){
+                if(Math.abs(nBox.position.x - nBox.startingPosition.x) > 3) {
+                    beatLevel = false;
+                }
+                if(Math.abs(nBox.position.y - nBox.startingPosition.y) > 3) {
+                    beatLevel = false;
+                }
+                if(Math.abs(nBox.position.z - nBox.startingPosition.z) > 3) {
+                    beatLevel = false;
+                }
+                nBox.dispose();
+
+            });
+            otherLoss = false;
+            boxes = [];
+            activeBox.position.x = 0;
+            activeBox.position.y = 1;
+            activeBox.position.z = 0;
+            activeBox.physicsImpostor.setLinearVelocity(new b.Vector3(0,0,0));
+            if(beatLevel) {
+                ++level;
+            }
+            spawnPins(level);
+        }
+        function spawnPins(count){
+            var arr = [];
+            // count = 2;
+            for(let i = count; i > 0; i--) {
+                arr.push(i);
+            }
+            console.log(arr);
+            for(let i = 0; i < arr.length; i++) {
+                for(let j = 1; j <= arr[i]; j++) {
+                    let nBox = new b.MeshBuilder.CreateBox(1,{size:0.333,height:2},scene);
+                    nBox.position.x = 20 - i;
+                    nBox.position.y = 1;
+                    nBox.position.z = (j/2 + i/4) - (count*0.3);
+                    // nBox.position.z = j/3 + i/6-2;
+                    nBox.physicsImpostor = new BABYLON.PhysicsImpostor(nBox, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 2.4,weight:100, restitution: 0.1 }, scene);
+                    boxes.push(nBox)
+                }
+            }
+        }
+        //starting point = j-arr[i];
+        window.addEventListener("keydown",function(e){
+            keys[e.key] = true;
+        });
+        window.addEventListener("keyup",function(e){
+            keys[e.key] = false;
+        });
+        window.addEventListener("mousedown",function(e){
+            keys[e.key] = true;
+        });
+        window.addEventListener("mouseup",function(e){
+            keys[e.key] = true;
+        });
+        window.addEventListener("mousemove",function(e){
+            keys[e.key] = true;
+        });
+        window.addEventListener("resize", function () {
+            engine.resize();
+        });
+        function cameraRotatePoint(objXYZ,vector1,vector2){
+            /// We use X and Y for vector1
+            /// And always use Z and X for vector2
+            var x = objXYZ.x;
+            var y = objXYZ.y;
+            var z = objXYZ.z;
+            var data1 = direction(vector1.distance,vector1.angle);
+            var data2 = direction(vector2.distance * 0,vector2.angle);
+            x += data1.r;
+            y += data1.u;
+            z += data2.r;
+            z += data2.u;
+            return {x:x,y:y,z:z};
+        }
+        function direction(distance,angle) {
+            angle = (angle * Math.PI) / 180;
+            var x = 0;
+            var y = 0;
+            x = Math.sin(angle) * distance;
+            y = Math.cos(angle) * distance
+            var radianRotation = (angle * Math.PI) / 180;
+            return({r:x, u:y});
+        }
+    </script>
+</body>
+</html>

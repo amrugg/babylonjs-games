@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+    <title>Materials</title>
+    <script src="babylon/babylon.js"></script>
+    <style>
+        html, body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <script>
+        var b = BABYLON;
+        var params = getParams();
+        function getParams() {
+            var params = {};
+            location.search.substr(1).split("&").forEach(function(el) {
+            var data = el.replace(/\+/g, " ").split("=");
+            params[decodeURIComponent(data[0])] = data[1] ? decodeURIComponent(data[1]) : true;
+            });
+            return params;
+        }
+        var keys = {};
+        var canvas = document.getElementById("renderCanvas");
+        var engine = new b.Engine(canvas, true);
+
+        var scene = new b.Scene(engine);
+
+        //Adding a light
+        var light = new b.PointLight("Omni", new b.Vector3(20, 20, 100), scene);
+
+        //Adding an Arc Rotate Camera
+        var camera = new b.ArcRotateCamera("Camera", 0, 0.8, 100, new b.Vector3.Zero(), scene);
+        // camera.attachControl(canvas, false);
+
+        // Show loading screen
+        engine.displayLoadingUI();
+
+        
+        // Render
+        // engine.runRenderLoop(function () {
+            // scene.render();
+        // });
+        window.addEventListener("keydown",function(e){
+            keys[e.key] = true;
+        });
+        window.addEventListener("keyup",function(e){
+            keys[e.key] = false;
+        });
+        // Resize
+        window.addEventListener("resize", function () {
+            engine.resize();
+        });
+    </script>
+</body>
+</html>>

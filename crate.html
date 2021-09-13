@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+    <title>Camera</title>
+    <script src="babylon/babylon.js"></script>
+    <script src="babylon/babylon.gui.js"></script>
+    <script src="babylon/cannon.js"></script>
+    <style>
+        html, body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+    </style>
+</head>
+<!-- <span><p>Level: 1</p></span> -->
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <script>
+        "use strict";
+        var b = BABYLON;
+        var params = getParams();
+        function getParams() {
+            var params = {};
+            location.search.substr(1).split("&").forEach(function(el) {
+            var data = el.replace(/\+/g, " ").split("=");
+            params[decodeURIComponent(data[0])] = data[1] ? decodeURIComponent(data[1]) : true;
+            });
+            return params;
+        }
+        var button1,advancedTexture, jumpStrength, keys, canvas,engine,scene,gravityVector,physicsPlugin,camera,sun,boxes,shadowGenerator;
+        var text,breakingSpeed,box,level,sound,otherLoss,activeBox,ground,state;
+        function createGUI() {
+            text = new BABYLON.GUI.TextBlock();
+            text.text = "Level: 1\nDifficulty:Hard\nUpward Motion: 0";
+            text.color = "white";
+            text.fontSize = 24;
+            text.top = -innerHeight/2 + 75;
+            text.left = -innerWidth/2 + 125;
+            advancedTexture.addControl(text);  
+        }
+        function createBeginGUI() {
+            button1 = BABYLON.GUI.Button.CreateSimpleButton("but1", "Welcome to Crate Jump!\nCrate Jump is a game where you have to jump over crates to get to the other side.\nThe goal of the game is to get to the other side of the platform\nwithout falling off or moving a crate too far from its original position.\nIf you land too hard on the ground, you will shatter and restart.\nUse the arrow keys to move. You play the ball in the center of the screen. Hit H to restart.\nHit Z to look backward. The controls will be flipped.\nUse Space Bar to jump. The crates will be staggered until Level 10.\nThe text that will show in the upper-left corner is very useful.\nIt tells you what level you are on, how fast you are falling or jumping,\nhow fast you have to move to shatter, and how far away the end is.\nClick me to start.");
+            button1.width = '800px';
+            button1.height = '275px';
+            button1.color = "black";
+            button1.fontSize = 20;
+            button1.thickness = 0;
+            button1.background = "white";
+            button1.onPointerUpObservable.add(function(){
+                advancedTexture.removeControl(button1);
+                createGUI();
+                state = play;
+            });
+            advancedTexture.addControl(button1);
+            // advancedTexture.addControl();
+        }
+        function begin() {
+            jumpStrength;
+            if(params.difficulty == "easy") {
+                jumpStrength = 110;
+            } else if(params.difficulty == "medium") {
+                jumpStrength = 100;
+            } else {
+                jumpStrength = 90;
+            }
+            keys = {};
+            canvas = document.getElementById("renderCanvas");
+            engine = new b.Engine(canvas, true);
+            scene = new b.Scene(engine);  
+            gravityVector = new b.Vector3(0,-9,0);
+            physicsPlugin = new b.CannonJSPlugin();
+            scene.enablePhysics(gravityVector,physicsPlugin);
+            /// Why the ArcRotateCamera? It can rotate easily when we want it to.
+            /// Simply setting the target will change the position.
+            camera = new b.ArcRotateCamera("Camera", 0, 0, 10, b.Vector3.Zero(), scene);
+            // camera.inputs.clear();
+            sun = new b.PointLight("Omni0", new b.Vector3(60, 100, 10), scene);
+            // var cyl1 = new b.Mesh.CreateCylinder(1,2,scene);
+            camera.setPosition(new b.Vector3(-10, 10, 0));
+            camera.attachControl(canvas,true,true);
+            boxes = [];
+            shadowGenerator = new BABYLON.ShadowGenerator(1024*1, sun);
+            shadowGenerator.useExponentialShadowMaps = true;
+            breakingSpeed = 14.5;
+            advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+            createBeginGUI();
+            state = wait;
+            box = b.Mesh.CreateSphere("text",64,1,scene);
+            box.position.y += 0.5;
+            box.isPickable = false;
+            box.lastVY = 0;
+            var boxMat = new b.StandardMaterial("name");
+            boxMat.diffuseTexture = new b.Texture("babylon/wood.jpg",scene);
+            box.material = boxMat;
+            boxMat.specularColor = new b.Color3.Gray();
+            shadowGenerator.addShadowCaster(box,true);
+            box.physicsImpostor = new BABYLON.PhysicsImpostor(box, BABYLON.PhysicsImpostor.SphereImpostor, { mass: 10,weight:100, restitution: 0.1 }, scene);
+            level = 1;
+            spawnBoxes(level);
+            sound;
+            otherLoss = false;
+            activeBox = box;
+            ground = BABYLON.Mesh.CreateGround("ground1", 6**2.5, 4, 2, scene);
+            ground.position.x+=10;
+            ground.physicsImpostor = new BABYLON.PhysicsImpostor(ground, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.9 }, scene);
+            ground.receiveShadows = true;
+            scene.render();
+            engine.runRenderLoop(function () {
+                scene.render();
+                state();
+            });
+        }
+        function wait() {
+
+        }
+        function play() {
+            if(activeBox.position.x > 53.5) {
+                reset();
+                return;
+            }
+            if(activeBox.position.y < -5) {
+                otherLoss = true;
+                reset();
+                return;
+            }
+            activeBox.moved = true;
+            activeBox.position.vx = 0;
+            activeBox.position.vy = 0;
+            activeBox.position.vz = 0;
+            var velocity = activeBox.physicsImpostor.getLinearVelocity();
+            var result = Math.abs((activeBox.lastVY) - (velocity.y));
+
+            if(result > 7) {
+                console.log(result);
+            }
+            if(result > 14.5) {
+                console.log(result,activeBox.lastVY,velocity.y);
+                otherLoss = true;
+                reset();
+                return;
+            }
+            activeBox.lastVY = velocity.y;
+            if((keys.ArrowUp && !keys.z) || (keys.ArrowDown && keys.z)) {
+                // console.log(velocity.y);
+                // activeBox.position.vx += 0.1;
+                // activeBox.physicsImpostor.setLinearVelocity(new BABYLON.Vector3(1,0,0));
+                if(velocity.x < 6) {
+                    activeBox.physicsImpostor.applyImpulse(new BABYLON.Vector3(1, 0, 0),activeBox.getAbsolutePosition()) 
+                }
+                activeBox.moved = true;
+            }
+            if((keys.ArrowLeft && !keys.z) || (keys.ArrowRight && keys.z)) {
+                // activeBox.physicsImpostor.setLinearVelocity(new BABYLON.Vector3(0,0,1));
+                if(velocity.z < 6) {
+                    activeBox.physicsImpostor.applyImpulse(new BABYLON.Vector3(0, 0, 1),activeBox.getAbsolutePosition()) 
+                }
+                // activeBox.position.vz += 0.1;
+                activeBox.moved = true;
+            }
+            if((keys.ArrowRight && !keys.z) || (keys.ArrowLeft && keys.z)) {
+                // activeBox.physicsImpostor.setLinearVelocity(new BABYLON.Vector3(0,0,-1));
+                if(velocity.z > -6) {
+                    activeBox.physicsImpostor.applyImpulse(new BABYLON.Vector3(0, 0, -1),activeBox.getAbsolutePosition()) 
+                }
+                activeBox.position.vz -= 0.1;
+                activeBox.moved = true;
+            }
+            if((keys.ArrowDown && !keys.z) || (keys.ArrowUp && keys.z)) {
+                // activeBox.physicsImpostor.setLinearVelocity(new BABYLON.Vector3(-1,0,0));
+                if(velocity.x > -6) {
+                activeBox.physicsImpostor.applyImpulse(new BABYLON.Vector3(-1, 0, 0),activeBox.getAbsolutePosition()) 
+                }
+                activeBox.position.vx -= 0.1;
+                activeBox.moved = true;
+            }
+            if(keys.h) {
+                keys.h = false;
+                otherLoss = true;
+                reset();
+                return;
+            }
+            if(keys.p) {
+                activeBox.rotation.x += 0.01;
+            }
+            if(keys[" "] && velocity.y < 2) {
+                var dir = new b.Vector3(0,-1,0);
+                var ray = new BABYLON.Ray(box.position, dir, 100);
+                var hit = scene.pickWithRay(ray);
+                // console.log(hit.pickedPoint)
+                if(hit.hit === true) {
+                    if(hit.pickedPoint.y + 0.6 >= activeBox.position.y) {
+                        keys[" "] = false;
+                        activeBox.physicsImpostor.applyImpulse(new BABYLON.Vector3(0, jumpStrength, 0),activeBox.getAbsolutePosition());
+                    }
+                }
+            }
+            boxes.forEach(function(nBox){
+                if(nBox.position.x - 2 < activeBox.position.x) {
+                    // console.log(box.)
+                    nBox.material.emissiveColor = new b.Color3(0,0.7,0);
+                    nBox.material.baseColor = new b.Color3(0,0.7,0);
+                } else {
+                    nBox.material.emissiveColor = new b.Color3(0.7,0,0);
+                    nBox.material.baseColor = new b.Color3(0.7,0,0);
+                }
+                if(nBox.position.y < -10) {
+                    otherLoss = true;
+                    reset();
+                }
+                // console.log(nBox.x,activeBox.x);
+                
+            });
+            if(activeBox.moved) {
+                var to100VY = velocity.y * 1;
+                to100VY = Math.round(to100VY) / 1;
+                if(Math.abs(velocity.y) > 14) {
+                    text.color = "red";
+                } else {
+                    text.color = "white";
+                }
+                text.text = "Level: " + level.toString() + "\nDifficulty: " + (jumpStrength == 110?"Easy":(jumpStrength == 100?"Medium":"Hard")) + "\nAltitude Velocity: "+to100VY.toString() + "\nBreakneck Speed: " + breakingSpeed.toString() + "\n" + "Distance Left: " + Math.round(53.5 - activeBox.position.x) + (Math.abs(velocity.y) > 14?"\nBreakneck Speed!":""); 
+                /// Change the position to follow after our activeBox...
+                if(keys.z) {
+                    var data = cameraRotatePoint({x:activeBox.position.x,y:activeBox.position.y,z:activeBox.position.z},{distance:10,angle:60},{distance:0,angle:0});
+                } else { 
+                    var data = cameraRotatePoint({x:activeBox.position.x,y:activeBox.position.y,z:activeBox.position.z},{distance:10,angle:-60},{distance:0,angle:0});
+                }
+                // console.log(data);
+                camera.position.x = data.x;
+                camera.position.y = data.y;
+                camera.position.z = data.z;
+                sun.position.x = activeBox.position.x + -5;
+                sun.position.z = activeBox.position.z;
+                /// And the target, or else we won't move for some reason
+                camera.target = new b.Vector3(activeBox.position.x,activeBox.position.y,activeBox.position.z);
+            }
+        }
+        function reset() {
+            var beatLevel = !otherLoss;
+            activeBox.lastVY = 0;
+            boxes.forEach(function(nBox){
+                if(Math.abs(nBox.position.x - nBox.startingPosition.x) > 3) {
+                    beatLevel = false;
+                }
+                if(Math.abs(nBox.position.y - nBox.startingPosition.y) > 3) {
+                    beatLevel = false;
+                }
+                if(Math.abs(nBox.position.z - nBox.startingPosition.z) > 3) {
+                    beatLevel = false;
+                }
+                nBox.dispose();
+
+            });
+            otherLoss = false;
+            boxes = [];
+            activeBox.position.x = 0;
+            activeBox.position.y = 1;
+            activeBox.position.z = 0;
+            if(level > 13) {
+                activeBox.position.x = (13 - level)*4;
+            }
+            activeBox.physicsImpostor.setLinearVelocity(new b.Vector3(0,0,0));
+            if(beatLevel) {
+                ++level;
+            }
+            spawnBoxes(level);
+        }
+        function spawnBoxes(count){
+            var arr = [];
+            for(let i = count; i > 0; i--) {
+                arr.push(i);
+            }
+            for(let i = 0; i < arr.length; i++) {
+                for(let j = 1; j < arr[i] + 1; j++) {
+                    var nBox = b.Mesh.CreateBox("box"+i.toString()+j.toString(),4,scene);
+                    if(level > 13) {
+                        nBox.position.x = j*4 + i*4/2 + (13-level) * 4;
+                    } else {
+                        nBox.position.x = j*4 + i*4/2;
+                    }
+                    var mat = new b.StandardMaterial();
+                    mat.emissiveColor = new b.Color3(0.7,0,0);
+                    mat.specularColor = new b.Color3(0,0,0);
+                    mat.baseColor = new b.Color3(0.7,0,0);
+                    nBox.material = mat;
+                    nBox.position.y = (i*4)+3;
+                    if(level < 10) {
+                        nBox.position.z = Math.random();
+                    }
+                    if(Math.random() >= 0.5) {
+                        nBox.position.z *= -1;
+                    }
+                    nBox.receiveShadows = true;
+                    nBox.startingPosition = nBox.position;
+                    nBox.physicsImpostor = new BABYLON.PhysicsImpostor(nBox, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 10,weight:10, restitution: 0.1 }, scene);
+                    /// if j == 1 && arr[i] == 2 x = 0;
+                    /// if j == 1 && arr[i] == 3
+                    boxes.push(nBox);
+                }
+            }
+        }
+        window.addEventListener("keydown",function(e){
+            keys[e.key] = true;
+        });
+        window.addEventListener("keyup",function(e){
+            keys[e.key] = false;
+        });
+        window.addEventListener("mousedown",function(e){
+            keys[e.key] = true;
+        });
+        window.addEventListener("mouseup",function(e){
+            keys[e.key] = true;
+        });
+        window.addEventListener("mousemove",function(e){
+            keys[e.key] = true;
+        });
+        window.addEventListener("resize", function () {
+            engine.resize();
+        });
+        function cameraRotatePoint(objXYZ,vector1,vector2){
+            /// We use X and Y for vector1
+            /// And always use Z and X for vector2
+            var x = objXYZ.x;
+            var y = objXYZ.y;
+            var z = objXYZ.z;
+            var data1 = direction(vector1.distance,vector1.angle);
+            var data2 = direction(vector2.distance * 0,vector2.angle);
+            x += data1.r;
+            y += data1.u;
+            z += data2.r;
+            z += data2.u;
+            return {x:x,y:y,z:z};
+        }
+        function direction(distance,angle) {
+            angle = (angle * Math.PI) / 180;
+            var x = 0;
+            var y = 0;
+            x = Math.sin(angle) * distance;
+            y = Math.cos(angle) * distance
+            var radianRotation = (angle * Math.PI) / 180;
+            return({r:x, u:y});
+        }
+        begin();
+    </script>
+</body>
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+    <title>Materials</title>
+    <script src="babylon/babylon.js"></script>
+    <style>
+        html, body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <script>
+        var params = getParams();
+        function getParams() {
+            var params = {};
+            location.search.substr(1).split("&").forEach(function(el) {
+            var data = el.replace(/\+/g, " ").split("=");
+            params[decodeURIComponent(data[0])] = data[1] ? decodeURIComponent(data[1]) : true;
+            });
+            return params;
+        }
+        var canvas = document.getElementById("renderCanvas");
+        var engine = new BABYLON.Engine(canvas, true);
+
+        var scene = new BABYLON.Scene(engine);
+
+        var camera = new BABYLON.FreeCamera("camera1", new BABYLON.Vector3(0, 5, -10), scene);
+
+        var mat = new BABYLON.StandardMaterial("mat");
+        camera.setTarget(new BABYLON.Vector3.Zero());
+        var keys = {};
+        camera.attachControl(canvas, false);
+        if(!params.noLight) {
+            var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
+        }
+        // var bigSphere = BABYLON.Mesh.CreateSphere("sphere1", 16, 10, scene);
+        // bigSphere.position.x += 20;
+        // bigSphere.position.y += 5;
+        // var multiMat = new BABYLON.MultiMat("blah",scene);
+        // for(let i = 0; i < 2; i++) {
+        //     multiMat.subMaterials.push()
+        // }
+        var sphere = BABYLON.Mesh.CreateSphere("sphere1", 16, 2, scene);
+
+        sphere.position.y = 1;
+        sphere.material = mat;
+        mat.emissiveColor = BABYLON.Color3.Red();
+        mat.standardColor = BABYLON.Color3.Purple();
+        var ground = BABYLON.Mesh.CreateGround("ground1", 100, 100, 2, scene);
+        for(let j = 1; j < 2; j++) {
+            for(let k = 1; k < 11; k++) {
+                for(let i = 1; i < 13; i++) {
+                    let newSphere = BABYLON.Mesh.CreateBox("cloneSphere" + i.toString(),1,scene,2,5);
+                    newSphere.position.y += i*2 + 1;
+                    newSphere.position.x += j*2 + 1;
+                    newSphere.position.z += k*2 + 1;
+                    let newMat = new BABYLON.StandardMaterial("newMat");
+                    if(i == 1) {
+                        newMat.diffuseColor = Math.random() < 0.5?BABYLON.Color3.Green():BABYLON.Color3.Blue();
+                        newMat.specularColor = BABYLON.Color3.Black();
+                    } else if(i == 2) {
+                        newMat.diffuseColor = Math.random() < 0.5?BABYLON.Color3.Green():BABYLON.Color3.Blue();
+                        newMat.specularColor = BABYLON.Color3.White();
+                    } else if(i == 3) {
+                        if(Math.random() < 0.5) {
+                            newMat.diffuseTexture = new BABYLON.Texture("babylon/tree.png",scene);
+                            newMat.diffuseTexture.hasAlpha = true;
+                        } else {
+                            newMat.diffuseTexture = new BABYLON.Texture("babylon/wood.jpg",scene);
+                        }
+                        newMat.emissiveColor = new BABYLON.Color3.Green();
+                        if(Math.random() < 0.5) {
+                            newMat.diffuseTexture.backFaceCulling = false;
+                        }
+                        if(Math.random() < 0.5) {
+                            newMat.diffuseTexture.uScale = 5;
+                            newMat.diffuseTexture.vScale = 5;
+                        } else {
+                            //newMat.diffuseTexture.uScale = 1;
+                        }
+                    } else if(i == 4) {
+                        newMat.emissiveColor = Math.random() < 0.5?BABYLON.Color3.Green():BABYLON.Color3.Blue();
+                        newMat.specularColor = BABYLON.Color3.Black();
+                    } else if(i == 5) {
+                        newMat.diffuseColor = Math.random() < 0.5?BABYLON.Color3.Green():BABYLON.Color3.Blue();
+                        newMat.emissiveColor = Math.random() < 0.5?BABYLON.Color3.Green():BABYLON.Color3.Blue();
+                        newMat.specularColor = BABYLON.Color3.Black();
+                    } else if(i === 6) {
+                        newMat.emissiveTexture = new BABYLON.Texture("babylon/wood.jpg",scene);
+                    } else if(i === 7){
+                        newMat.diffuseColor = Math.random() < 0.5?BABYLON.Color3.Green():BABYLON.Color3.Blue();
+                        if(Math.random() < 0.25) {
+                            newMat.emissiveColor = Math.random() < 0.5?BABYLON.Color3.Green():BABYLON.Color3.Blue();
+                        }
+                        newMat.bumpTexture = new BABYLON.Texture("babylon/normal.jpg",scene);
+                    } else if(i === 8){
+                        newMat.diffuseTexture = new BABYLON.Texture("babylon/normal.jpg",scene);
+                        newMat.bumpTexture = new BABYLON.Texture("babylon/normal.jpg",scene);
+                    } else if(i === 9) {
+                        newMat.diffuseTexture = new BABYLON.Texture("babylon/wood.jpg",scene);
+                        newMat.reflectionTexture = new BABYLON.CubeTexture("babylon/Refcube",scene);
+                    } else if(i === 10) {
+                        newMat.wireframe = true;
+                        newMat.diffuseColor = Math.random() < 0.5?BABYLON.Color3.Green():BABYLON.Color3.Blue();
+                        newMat.emissiveColor = Math.random() < 0.5?BABYLON.Color3.Green():BABYLON.Color3.Blue();
+                    } else if(i === 11) {
+                        if(Math.random() < 0.5) {
+                            newMat.diffuseTexture = new BABYLON.Texture("babylon/rainbow.jpg");//new BABYLON.VideoTexture("video",["babylon/video.mp4"],scene);
+                            newMat.diffuseTexture.uScale = 5;
+                            newMat.diffuseTexture.vScale = 5;
+                        } else {
+                            newMat.emissiveTexture = new BABYLON.Texture("babylon/rainbow.jpg");
+                            newMat.emissiveTexture.uScale = 5;
+                            newMat.emissiveTexture.vScale = 5;
+                        }                        
+                    } else {
+                        newMat.diffuseColor = Math.random() < 0.5?BABYLON.Color3.Green():BABYLON.Color3.Blue();
+                        if(Math.random() < 0.6) {
+                            newMat.emissiveColor = Math.random() < 0.5?BABYLON.Color3.Green():BABYLON.Color3.Blue();
+                        }
+                        newMat.specularColor = BABYLON.Color3.White();
+                    }
+                    newSphere.material = newMat;
+                }
+            }
+        }
+        engine.runRenderLoop(function () {
+            sphere.position.vx = 0;
+            sphere.position.vy = 0;
+            sphere.position.vz = 0;
+            if(keys.w) {
+                sphere.position.vz += 1;
+            }
+            if(keys.s) {
+                sphere.position.vz -= 1;
+            }
+            if(keys.a) {
+                sphere.position.vx -= 1;
+            }
+            if(keys.d) {
+                sphere.position.vx += 1;
+            }
+            if(keys.q) {
+                sphere.position.vy += 1;
+            }
+            if(keys.e) {
+                sphere.position.vy -= 1;
+            }
+            sphere.position.x += sphere.position.vx / 2;
+            sphere.position.y += sphere.position.vy / 2;
+            sphere.position.z += sphere.position.vz / 2;
+            scene.render();
+        });
+        window.addEventListener("keydown",function(e){
+            keys[e.key] = true;
+            console.log(e.key);
+        });
+        window.addEventListener("keyup",function(e){
+            keys[e.key] = false;
+        });
+        // Resize
+        window.addEventListener("resize", function () {
+            engine.resize();
+        });
+    </script>
+</body>
+</html>>

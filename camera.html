@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+    <title>Camera</title>
+    <script src="babylon/babylon.js"></script>
+    <script src="babylon/babylon.gui.min.js"></script>
+    <style>
+        html, body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <script>
+        var b = BABYLON;
+        var params = getParams();
+        function getParams() {
+            var params = {};
+            location.search.substr(1).split("&").forEach(function(el) {
+            var data = el.replace(/\+/g, " ").split("=");
+            params[decodeURIComponent(data[0])] = data[1] ? decodeURIComponent(data[1]) : true;
+            });
+            return params;
+        }
+        var keys = {};
+        var canvas = document.getElementById("renderCanvas");
+        var engine = new b.Engine(canvas, false);
+
+        var scene = new b.Scene(engine);
+        /// Why the ArcRotateCamera? It can rotate easily when we want it to.
+        /// Simply setting the target will change the position.
+        var camera = new b.ArcRotateCamera("Camera", 0, 0, 10, b.Vector3.Zero(), scene);
+        camera.inputs.clear();
+        var sun = new b.PointLight("Omni0", new b.Vector3(60, 100, 10), scene);
+
+        camera.setPosition(new b.Vector3(-10, 10, 0));
+        camera.attachControl(canvas,true,true);
+        var boxes = [];
+        var box = b.Mesh.CreateBox("text",1,scene);
+        box.position.y += 0.5;
+        var box1 = b.Mesh.CreateBox("text1",1,scene);
+        box1.position.y += 0.5;
+        box1.position.z += Math.random() * (10-3)+3;
+        var box2 = b.Mesh.CreateBox("text2",1,scene);
+        box2.position.y += 0.5;
+        box2.position.z -= Math.random() * (10-3)+3;
+        var sound;
+        var activeBox = box;
+        var ground = b.MeshBuilder.CreateGround("ground",{width:20,height:20});
+        var advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+
+        var text1 = new BABYLON.GUI.TextBlock("hello world");
+        // text1.text = "Hello world";
+        text1.color = "white";
+        text1.fontSize = 24;
+        advancedTexture.addControl(text1);    
+        engine.runRenderLoop(function () {
+            scene.render();
+            activeBox.moved = false;
+            activeBox.position.vx = 0;
+            activeBox.position.vy = 0;
+            activeBox.position.vz = 0;
+            if(keys[1]) {
+                activeBox = box;
+                var data = cameraRotatePoint({x:activeBox.position.x,y:activeBox.position.y,z:activeBox.position.z},{distance:20,angle:-40},{distance:0,angle:0});
+                // console.log(data);
+                camera.position.x = data.x;
+                camera.position.y = data.y;
+                camera.position.z = data.z;
+                camera.target = new b.Vector3(activeBox.position.x,activeBox.position.y,activeBox.position.z);
+                activeBox.moved = true;
+                activeBox.position.vx = 0;
+                activeBox.position.vy = 0;
+                activeBox.position.vz = 0;
+            } else if(keys[2]) {
+                activeBox = box1;
+                var data = cameraRotatePoint({x:activeBox.position.x,y:activeBox.position.y,z:activeBox.position.z},{distance:20,angle:-40},{distance:0,angle:0});
+                // console.log(data);
+                camera.position.x = data.x;
+                camera.position.y = data.y;
+                camera.position.z = data.z;
+                camera.target = new b.Vector3(activeBox.position.x,activeBox.position.y,activeBox.position.z);
+                activeBox.moved = true;
+                activeBox.position.vx = 0;
+                activeBox.position.vy = 0;
+                activeBox.position.vz = 0;
+            } else if(keys[3]) {
+                keys[3] = false;
+                activeBox = box2;
+                var data = cameraRotatePoint({x:activeBox.position.x,y:activeBox.position.y,z:activeBox.position.z},{distance:20,angle:-40},{distance:0,angle:0});
+                // console.log(data);
+                camera.position.x = data.x;
+                camera.position.y = data.y;
+                camera.position.z = data.z;
+                camera.target = new b.Vector3(activeBox.position.x,activeBox.position.y,activeBox.position.z);
+                activeBox.moved = true;
+                activeBox.position.vx = 0;
+                activeBox.position.vy = 0;
+                activeBox.position.vz = 0;
+            }
+            if(keys.ArrowUp) {
+                activeBox.position.vx += 0.1;
+                activeBox.moved = true;
+            }
+            if(keys.ArrowLeft) {
+                activeBox.position.vz += 0.1;
+                activeBox.moved = true;
+            }
+            if(keys.ArrowRight) {
+                activeBox.position.vz -= 0.1;
+                activeBox.moved = true;
+            }
+            if(keys.ArrowDown) {
+                activeBox.position.vx -= 0.1;
+                activeBox.moved = true;
+            }
+            if(keys.p) {
+                activeBox.rotation.x += 0.01;
+            }
+            if(activeBox.moved) {
+                activeBox.position.x += activeBox.position.vx;
+                activeBox.position.y += activeBox.position.vy;
+                activeBox.position.z += activeBox.position.vz;
+                /// Change the position to follow after our activeBox...
+                var data = cameraRotatePoint({x:activeBox.position.x,y:activeBox.position.y,z:activeBox.position.z},{distance:20,angle:-40},{distance:0,angle:0});
+                // console.log(data);
+                camera.position.x = data.x;
+                camera.position.y = data.y;
+                camera.position.z = data.z;
+                /// And the target, or else we won't move for some reason
+                camera.target = new b.Vector3(activeBox.position.x,activeBox.position.y,activeBox.position.z);
+            }
+        });
+        window.addEventListener("keydown",function(e){
+            keys[e.key] = true;
+        });
+        window.addEventListener("keyup",function(e){
+            keys[e.key] = false;
+        });
+        window.addEventListener("mousedown",function(e){
+            keys[e.key] = true;
+        });
+        window.addEventListener("mouseup",function(e){
+            keys[e.key] = true;
+        });
+        window.addEventListener("mousemove",function(e){
+            keys[e.key] = true;
+        });
+        window.addEventListener("resize", function () {
+            engine.resize();
+        });
+        function cameraRotatePoint(objXYZ,vector1,vector2){
+            /// We use X and Y for vector1
+            /// And always use Z and X for vector2
+            var x = objXYZ.x;
+            var y = objXYZ.y;
+            var z = objXYZ.z;
+            console.log(objXYZ);
+            var data1 = direction(vector1.distance,vector1.angle);
+            var data2 = direction(vector2.distance * 0,vector2.angle);
+            x += data1.r;
+            y += data1.u;
+            z += data2.r;
+            z += data2.u;
+            return {x:x,y:y,z:z};
+        }
+        function direction(distance,angle) {
+            angle = (angle * Math.PI) / 180;
+            var x = 0;
+            var y = 0;
+            x = Math.sin(angle) * distance;
+            y = Math.cos(angle) * distance
+            var radianRotation = (angle * Math.PI) / 180;
+            return({r:x, u:y});
+        }
+    </script>
+</body>
+</html>>

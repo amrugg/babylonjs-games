@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+    <title>Materials</title>
+    <script src="babylon/babylon.js"></script>
+    <style>
+        html, body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <script>
+        var b = BABYLON;
+        var params = getParams();
+        function getParams() {
+            var params = {};
+            location.search.substr(1).split("&").forEach(function(el) {
+            var data = el.replace(/\+/g, " ").split("=");
+            params[decodeURIComponent(data[0])] = data[1] ? decodeURIComponent(data[1]) : true;
+            });
+            return params;
+        }
+        var keys = {};
+        var canvas = document.getElementById("renderCanvas");
+        var engine = new b.Engine(canvas, false);
+
+        var scene = new b.Scene(engine);
+        var camera = new b.ArcRotateCamera("Camera", 0, 0, 10, b.Vector3.Zero(), scene);
+        var sun = new b.PointLight("Omni0", new b.Vector3(60, 100, 10), scene);
+
+        camera.setPosition(new b.Vector3(-10, 10, 0));
+        camera.attachControl(canvas,true,true);
+        var boxes = [];
+        for(let j = 1; j < 10; j+=4) {
+            for(let i = 0; i < 10; i+=2) {
+                let box = new b.Mesh.CreateBox("box"+i.toString(),1,scene);
+                box.scaling.y = Math.random() * 2 + 1;
+                box.position.x = (i - 4) * 2.5;
+                box.position.z = (j - 5) * 2.5;
+                box.position.y = box.scaling.y / 2;
+                let roof = b.MeshBuilder.CreateCylinder("roof"+i.toString(),{diameter:1.3,height:1.2,tessellation:3});
+                roof.position.x = box.position.x;
+                roof.position.y = box.scaling.y + 0.25;
+                roof.rotation.z = 90 * Math.PI / 180;
+                roof.position.z = box.position.z;
+                box.roof = roof;
+                boxMat = new b.StandardMaterial("houseMat"+i.toString());
+                boxMat.diffuseTexture = new b.Texture("babylon/wood.jpg");
+                box.material = boxMat;
+                roofMat = new b.StandardMaterial("roofMat" + i.toString());
+                roofMat.diffuseTexture = new b.Texture("babylon/roof.jpg");
+                box.roof.material = roofMat;
+                house = b.Mesh.MergeMeshes([box,roof],undefined,undefined,undefined,undefined,true);
+                boxes.push(house);
+            }
+        }
+        var ground = b.MeshBuilder.CreateGround("ground",{width:25,height:25});
+        groundMat = new b.StandardMaterial("mat");
+        groundMat.diffuseTexture = new b.Texture("babylon/ground.png");
+        ground.material = groundMat;
+        engine.runRenderLoop(function () {
+            scene.render();
+        });
+        window.addEventListener("keydown",function(e){
+            keys[e.key] = true;
+        });
+        window.addEventListener("keyup",function(e){
+            keys[e.key] = false;
+        });
+        window.addEventListener("mousedown",function(e){
+            keys[e.key] = true;
+        });
+        window.addEventListener("mouseup",function(e){
+            keys[e.key] = true;
+        });
+        window.addEventListener("mousemove",function(e){
+            keys[e.key] = true;
+        });
+        // Resize
+        window.addEventListener("resize", function () {
+            engine.resize();
+        });
+    </script>
+</body>
+</html>>
