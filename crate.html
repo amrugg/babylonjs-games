@@ -90,7 +90,7 @@
             camera.setPosition(new b.Vector3(-10, 10, 0));
             camera.attachControl(canvas,true,true);
             boxes = [];
-            shadowGenerator = new BABYLON.ShadowGenerator(1024*1, sun);
+            shadowGenerator = new BABYLON.ShadowGenerator(1024*3, sun);
             shadowGenerator.useExponentialShadowMaps = true;
             breakingSpeed = 14.5;
             advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
@@ -106,7 +106,7 @@
             boxMat.specularColor = new b.Color3.Gray();
             shadowGenerator.addShadowCaster(box,true);
             box.physicsImpostor = new BABYLON.PhysicsImpostor(box, BABYLON.PhysicsImpostor.SphereImpostor, { mass: 10,weight:100, restitution: 0.1 }, scene);
-            level = 1;
+            level = params.level || 1;
             spawnBoxes(level);
             sound;
             otherLoss = false;
